@@ -19,7 +19,7 @@ jobs:
       - uses: hendrikmuhs/ccache-action@v1.2
 
       - name: Restore Gradle Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
             ~/.gradle/
@@ -58,7 +58,7 @@ jobs:
         shell: bash
         run: echo "git_short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: vita3k-${{ env.git_short_sha }}-release.apk
           path: android/build/outputs/apk/release/android-release.apk
