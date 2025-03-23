@@ -1,0 +1,75 @@
+name: Update Vita3K for Mali GPUs
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 0 * * 1' # Runs every Monday at midnight UTC
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  update-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+
+      - name: Fetch upstream changes
+        run: |
+          UPSTREAM_REPO="https://github.com/Vita3K/Vita3K-Android.git"
+          git remote add upstream $UPSTREAM_REPO || true
+          git fetch upstream
+          git merge upstream/main --no-edit || echo "No new changes to merge"
+
+      - name: Apply Mali GPU custom driver fix
+        run: |
+          # Adjust Vulkan backend to prefer Mali GPUs
+          MALI_FIX_PATH="app/src/main/cpp/graphics/backend/vulkan/VulkanContext.cpp"
+          if [ -f "$MALI_FIX_PATH" ]; then
+              sed -i 's/#define DEFAULT_GPU "Adreno"/#define DEFAULT_GPU "Mali"/g' "$MALI_FIX_PATH"
+              echo "Applied Mali GPU patch in VulkanContext.cpp"
+          else
+              echo "Warning: Mali fix file not found!"
+          fi
+
+          # Ensure the app loads custom Mali drivers
+          CUSTOM_DRIVER_PATH="app/src/main/jniLibs/arm64-v8a/libMaliDriver.so"
+          if [ -f "$CUSTOM_DRIVER_PATH" ]; then
+              echo "Custom Mali driver found: $CUSTOM_DRIVER_PATH"
+          else
+              echo "Warning: Custom Mali driver not found!"
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Grant execute permission to Gradle
+        run: chmod +x gradlew
+
+      - name: Build APK
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vita3K-Mali-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Commit and push changes
+        run: |
+          git add .
+          git commit -m "Updated Vita3K for Mali GPU support" || echo "No changes to commit"
+          git push origin main || echo "No changes to push"
+          
